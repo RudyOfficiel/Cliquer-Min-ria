@@ -30,7 +30,7 @@ const SaveSystem = (() => {
     // ── Constantes ───────────────────────────────────────────
     const SAVE_KEY       = 'mineria_save_v1';  // Clé localStorage
     const SAVE_VERSION   = 1;                  // Version du format de sauvegarde
-    const SAVE_INTERVAL  = 30000;              // Auto-save toutes les 30s
+    const SAVE_INTERVAL  = 45000;              // Auto-save toutes les 45s
     const OFFLINE_MAX    = 8 * 3600;           // Max 8 heures de gains idle hors-ligne
 
     let autoSaveTimer = null; // Référence du setInterval d'auto-save
