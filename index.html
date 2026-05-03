@@ -2,320 +2,426 @@
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
-    <title>DeepMine — L'Empire Souterrain</title>
-    <meta name="description" content="Jeu de minage incrémental. Creusez, évoluez, régnez sur les profondeurs.">
+    <!-- Viewport pour mobile : empêche le zoom sur double-tap -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Minéria — L'Empire Souterrain</title>
+    <meta name="description" content="Minéria : jeu de minage incrémental. Creusez, évoluez, régnez sur les profondeurs.">
+    <!-- Favicon emoji (inline SVG) -->
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⛏️</text></svg>">
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
-<!-- ─── Overlay de particules & nombres flottants ───────────── -->
-<div id="particles-container" aria-hidden="true"></div>
-<div id="floating-numbers" aria-hidden="true"></div>
+<!--
+    ============================================================
+    MINÉRIA — index.html
+    ============================================================
+    Structure du DOM en 5 grandes zones :
+      1. Overlays globaux (particules, flottants, notifications)
+      2. Modals (prestige)
+      3. #game-wrapper → grille principale CSS
+         a. #topbar   → ressources + logo + boutons
+         b. #left-panel  → Zone / Stats / Succès / Prestige
+         c. #center-panel → Bouton Miner + atmosphère
+         d. #right-panel  → Boutique (bâtiments + upgrades)
+         e. #bottombar → événements + log + version
+    ============================================================
+-->
 
-<!-- ─── Notifications ──────────────────────────────────────── -->
+
+<!-- ── 1. OVERLAYS GLOBAUX (z-index élevé, pointer-events: none) ── -->
+
+<!-- Conteneur des particules de clic (créées/supprimées par JS) -->
+<div id="particles-container" aria-hidden="true"></div>
+
+<!-- Conteneur des nombres flottants "+N" (créés/supprimés par JS) -->
+<div id="floating-numbers"     aria-hidden="true"></div>
+
+<!-- Conteneur des toasts de notification (coin supérieur droit) -->
 <div id="notifications" role="status" aria-live="polite"></div>
 
-<!-- ─── Popup Achievement ──────────────────────────────────── -->
+<!-- Popup de succès débloqué (apparaît en bas de page) -->
 <div id="achievement-popup" role="alert" aria-live="assertive"></div>
 
-<!-- ─── Modal Prestige ─────────────────────────────────────── -->
+
+<!-- ── 2. MODAL DE PRESTIGE ──────────────────────────────────── -->
+<!-- Masqué par défaut. Affiché par JS quand prestige-btn est cliqué. -->
 <div id="prestige-modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
     <div class="modal-box">
         <div class="modal-icon">🔄</div>
         <h2 class="modal-title" id="modal-title">Reconstruction de la Mine</h2>
+
         <p class="modal-desc">
-            Vous allez tout réinitialiser en échange de <strong>Fragments de Minerium</strong>
-            permanents, qui boostent définitivement votre empire minier.
+            Sacrifiez votre progression actuelle pour obtenir des
+            <strong>Fragments de Sagesse</strong> permanents. Ils boostent
+            définitivement votre puissance de clic, de production et vos
+            chances de trouver des minerais rares.
         </p>
-        <div class="modal-reward" id="modal-fragments-preview">Calcul en cours...</div>
-        <p class="modal-desc" style="font-size:11px; color: #FF6600; margin-bottom: 16px;">
-            ⚠️ Ressources, bâtiments et upgrades seront réinitialisés.<br>
-            Zones débloquées et succès seront conservés.
+
+        <!-- Rempli par JS avec le nombre de fragments disponibles -->
+        <div class="modal-reward" id="modal-fragments-preview">Calcul...</div>
+
+        <p class="modal-warning">
+            ⚠️ Ressources, bâtiments et améliorations seront réinitialisés.<br>
+            Zones débloquées et succès sont <strong>conservés</strong>.
         </p>
+
         <div class="modal-buttons">
             <button class="btn-confirm" id="prestige-confirm">✓ Confirmer</button>
-            <button class="btn-cancel"  id="prestige-cancel">✗ Annuler</button>
+            <button class="btn-cancel"  id="prestige-cancel" >✗ Annuler</button>
         </div>
     </div>
 </div>
 
-<!-- ═══════════════════════════════════════════════════════════
-     STRUCTURE PRINCIPALE DU JEU
-═══════════════════════════════════════════════════════════ -->
+
+<!-- ══════════════════════════════════════════════════════════
+     3. STRUCTURE PRINCIPALE DU JEU
+══════════════════════════════════════════════════════════ -->
 
 <div id="game-wrapper">
 
-    <!-- ─── TOP BAR ────────────────────────────────────────── -->
+    <!-- ────────────────────────────────────────────────────
+         A. TOP BAR — Ressources et contrôles
+    ──────────────────────────────────────────────────────── -->
     <header id="topbar" role="banner">
-        <div class="game-logo">
+
+        <!-- Logo Minéria -->
+        <div class="game-logo" aria-label="Minéria">
             <span class="game-logo-icon">⛏️</span>
-            <span class="game-logo-text">Minerium</span>
+            <span class="game-logo-text">Minéria</span>
         </div>
 
-        <!-- Ressources -->
-        <div class="resource-bar" role="region" aria-label="Ressources">
-            <div class="res-item" title="Pierre">
+        <!-- Barre de ressources scrollable -->
+        <div class="resource-bar" role="region" aria-label="Ressources du joueur">
+
+            <!-- Pierre : ressource principale -->
+            <div class="res-item" title="Pierre — Ressource principale">
                 <span class="res-emoji">🪨</span>
                 <span class="res-name">Pierre</span>
-                <span class="res-value" id="res-stone">0</span>
+                <span class="res-value" id="res-stone">15</span>
             </div>
+
+            <!-- Ressources secondaires (apparaissent progressivement) -->
             <div class="res-item secondary" title="Charbon">
                 <span class="res-emoji">🖤</span>
                 <span class="res-name">Charbon</span>
                 <span class="res-value" id="res-coal">0</span>
             </div>
+
             <div class="res-item secondary" title="Fer">
                 <span class="res-emoji">⚙️</span>
                 <span class="res-name">Fer</span>
                 <span class="res-value" id="res-iron">0</span>
             </div>
+
             <div class="res-item secondary" title="Or">
                 <span class="res-emoji">🥇</span>
                 <span class="res-name">Or</span>
                 <span class="res-value" id="res-gold">0</span>
             </div>
+
             <div class="res-item secondary" title="Diamant">
                 <span class="res-emoji">💎</span>
                 <span class="res-name">Diamant</span>
                 <span class="res-value" id="res-diamond">0</span>
             </div>
+
             <div class="res-item secondary" title="Cristal">
                 <span class="res-emoji">🔮</span>
                 <span class="res-name">Cristal</span>
                 <span class="res-value" id="res-crystal">0</span>
             </div>
+
             <div class="res-item secondary" title="Minerai Légendaire">
                 <span class="res-emoji">🌟</span>
                 <span class="res-name">Légend.</span>
                 <span class="res-value" id="res-legendary">0</span>
             </div>
 
-            <!-- Production/sec -->
-            <div class="res-item" title="Production par seconde">
+            <!-- Production par seconde (mise à jour par JS) -->
+            <div class="res-item" title="Production automatique par seconde">
                 <span class="res-emoji">📈</span>
                 <span class="res-name">Par sec</span>
                 <span id="stone-per-sec" class="res-value">0/s</span>
             </div>
         </div>
 
-        <!-- Boutons de paramètres -->
-        <div class="header-btns">
-            <button id="sound-toggle"     class="header-btn" title="Son" aria-label="Activer/désactiver le son">🔇</button>
-            <button id="particles-toggle" class="header-btn active" title="Particules" aria-label="Activer/désactiver les particules">✨</button>
-            <button id="save-btn"         class="header-btn" title="Sauvegarder" aria-label="Sauvegarder">💾</button>
-            <button id="reset-btn"        class="header-btn" title="Réinitialiser" aria-label="Réinitialiser" style="color: #FF4444;">🗑️</button>
+        <!-- Boutons de paramètres (coin droit de la topbar) -->
+        <div class="header-btns" role="toolbar" aria-label="Paramètres">
+            <!-- Son -->
+            <button id="sound-toggle"
+                    class="header-btn"
+                    title="Activer/désactiver le son"
+                    aria-label="Son">🔇</button>
+
+            <!-- Particules -->
+            <button id="particles-toggle"
+                    class="header-btn active"
+                    title="Activer/désactiver les particules"
+                    aria-label="Particules">✨</button>
+
+            <!-- Sauvegarde manuelle -->
+            <button id="save-btn"
+                    class="header-btn"
+                    title="Sauvegarder maintenant"
+                    aria-label="Sauvegarder">💾</button>
+
+            <!-- Reset complet (demande confirmation) -->
+            <button id="reset-btn"
+                    class="header-btn"
+                    title="Réinitialiser complètement le jeu"
+                    aria-label="Réinitialiser"
+                    style="color:#FF4444">🗑️</button>
         </div>
     </header>
 
-    <!-- ─── LEFT PANEL ─────────────────────────────────────── -->
+
+    <!-- ────────────────────────────────────────────────────
+         B. PANNEAU GAUCHE — Zone / Stats / Succès / Prestige
+    ──────────────────────────────────────────────────────── -->
     <aside id="left-panel" role="complementary" aria-label="Panneau gauche">
 
-        <!-- Onglets gauche -->
-        <div class="left-tabs" role="tablist">
-            <button class="left-tab-btn active" data-panel="zone" role="tab" aria-selected="true">Zone</button>
-            <button class="left-tab-btn" data-panel="stats"   role="tab" aria-selected="false">Stats</button>
-            <button class="left-tab-btn" data-panel="achievements" role="tab" aria-selected="false">Succès</button>
-            <button class="left-tab-btn" data-panel="prestige" role="tab" aria-selected="false">Prestige</button>
+        <!-- Onglets de navigation du panneau gauche -->
+        <div class="left-tabs" role="tablist" aria-label="Navigation panneau gauche">
+            <button class="left-tab-btn active" data-panel="zone"
+                    role="tab" aria-selected="true"  aria-controls="panel-zone">Zone</button>
+            <button class="left-tab-btn"        data-panel="stats"
+                    role="tab" aria-selected="false" aria-controls="panel-stats">Stats</button>
+            <button class="left-tab-btn"        data-panel="achievements"
+                    role="tab" aria-selected="false" aria-controls="panel-achievements">Succès</button>
+            <button class="left-tab-btn"        data-panel="prestige"
+                    role="tab" aria-selected="false" aria-controls="panel-prestige">Prestige</button>
         </div>
 
-        <!-- Panel : Zone -->
+
+        <!-- ── ONGLET : Zone ──────────────────────────────── -->
         <div id="panel-zone" class="left-panel-content active" role="tabpanel">
-            <!-- Info zone actuelle -->
+
+            <!-- Informations sur la zone active -->
             <div class="zone-info-card">
                 <div id="current-zone-name">🌿 Surface</div>
                 <div id="current-zone-desc">Le sol de la surface.</div>
+
+                <!-- Barre de profondeur (0m → 12742m) -->
                 <div class="depth-section">
                     <div class="depth-label">
-                        <span>PROFONDEUR</span>
+                        <span>Profondeur</span>
                         <span id="depth-value">0m</span>
                     </div>
-                    <div class="depth-bar" role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="12742">
-                        <div id="depth-bar-fill" style="width: 0%"></div>
+                    <div class="depth-bar"
+                         role="progressbar"
+                         aria-valuenow="0"
+                         aria-valuemin="0"
+                         aria-valuemax="12742"
+                         aria-label="Profondeur atteinte">
+                        <div id="depth-bar-fill" style="width:0%"></div>
                     </div>
                 </div>
             </div>
 
-            <!-- Liste des zones -->
+            <!-- Titre + liste des zones -->
             <div class="section-title">Zones de la Mine</div>
-            <div id="zones-panel" role="list" aria-label="Zones"></div>
+
+            <!-- Liste rendue dynamiquement par UI.renderZones() -->
+            <div id="zones-panel" role="list" aria-label="Zones de la mine"></div>
         </div>
 
-        <!-- Panel : Stats -->
+
+        <!-- ── ONGLET : Stats ─────────────────────────────── -->
         <div id="panel-stats" class="left-panel-content" role="tabpanel">
             <div class="section-title">Statistiques</div>
+            <!-- Contenu rendu par UI.updateStats() -->
             <div id="stats-content"></div>
         </div>
 
-        <!-- Panel : Succès -->
+
+        <!-- ── ONGLET : Succès ────────────────────────────── -->
         <div id="panel-achievements" class="left-panel-content" role="tabpanel">
             <div class="section-title">
-                Succès
-                <span id="ach-count" style="float:right; font-family: var(--font-mono); color: var(--zone-accent);">0/0</span>
+                Succès débloqués
+                <!-- Compteur N/Total mis à jour par JS -->
+                <span id="ach-count" style="float:right; font-family:var(--font-mono); color:var(--zone-accent);">0/0</span>
             </div>
+            <!-- Grille de succès rendue par UI.renderAchievements() -->
             <div id="achievements-content"></div>
         </div>
 
-        <!-- Panel : Prestige -->
+
+        <!-- ── ONGLET : Prestige ──────────────────────────── -->
         <div id="panel-prestige" class="left-panel-content" role="tabpanel">
             <div class="prestige-card">
                 <div class="prestige-title">⚗️ Reconstruction de la Mine</div>
                 <div class="prestige-icon">🔄</div>
-                <div id="prestige-fragments">0 Fragments</div>
-                <div id="prestige-preview">Continuez à miner...</div>
 
-                <div class="prestige-bonuses" id="prestige-bonuses">
-                    <div>🖱️ Clic : <span id="pb-click">+0%</span></div>
-                    <div>⚡ Auto : <span id="pb-auto">+0%</span></div>
-                    <div>🍀 Chance : <span id="pb-luck">+0%</span></div>
-                    <div>🔄 Prestiges : <span id="pb-count">0</span></div>
+                <!-- Nombre de fragments actuels -->
+                <div id="prestige-fragments">0 Fragments de Sagesse</div>
+
+                <!-- Statut / fragments disponibles -->
+                <div id="prestige-preview">Accumulez 1M de pierres...</div>
+
+                <!-- Tableau des bonus permanents actuels -->
+                <div class="prestige-bonuses">
+                    <div>⛏️ Bonus clic : <span id="pb-click">+0%</span></div>
+                    <div>⚡ Bonus auto : <span id="pb-auto">+0%</span></div>
+                    <div>🍀 Bonus chance : <span id="pb-luck">+0%</span></div>
+                    <div>🔄 Prestiges effectués : <span id="pb-count">0</span></div>
                 </div>
 
-                <button id="prestige-btn" disabled aria-label="Effectuer un prestige">
-                    🔄 Reconstruire
+                <!-- Bouton prestige (désactivé par défaut, activé par JS) -->
+                <button id="prestige-btn" disabled aria-label="Effectuer une reconstruction">
+                    🔄 Reconstruire la Mine
                 </button>
             </div>
 
-            <div style="padding: 10px; font-size: 12px; color: var(--text-dim); text-align: center;">
-                Débloquez 5+ zones et accumulez suffisamment de ressources pour activer le Prestige.
-            </div>
+            <!-- Explication en bas -->
+            <p style="padding:8px; font-size:11px; color:var(--text-dim); text-align:center; line-height:1.6;">
+                Débloquez 5 zones minimum et gagnez 1 million de pierres
+                pour activer le Prestige.
+            </p>
         </div>
-    </aside>
 
-    <!-- ─── CENTER PANEL ────────────────────────────────────── -->
+    </aside><!-- /#left-panel -->
+
+
+    <!-- ────────────────────────────────────────────────────
+         C. CENTRE — Zone de minage et bouton principal
+    ──────────────────────────────────────────────────────── -->
     <main id="center-panel" role="main">
+
+        <!-- Zone visuelle animée (data-zone changé par JS) -->
         <div id="mine-area" data-zone="surface">
 
-            <!-- Indicateur de zone -->
-            <div class="center-zone-indicator">
+            <!-- Indicateur flottant de zone (haut du centre) -->
+            <div class="center-zone-indicator" aria-live="polite">
                 <span id="mine-zone-emoji">🌿</span>
                 <span id="mine-zone-name">Surface</span>
             </div>
 
-            <!-- Bouton principal de minage -->
+            <!--
+                BOUTON PRINCIPAL DE MINAGE
+                État initial : désactivé (classe "locked")
+                Se débloque après achat de la Pioche de Base dans la boutique
+                La classe "clicking" est ajoutée/retirée par JS pour l'animation
+            -->
             <button
                 id="mine-btn"
+                class="locked"
+                disabled
                 aria-label="Miner des ressources"
-                title="Cliquez pour miner !"
+                title="Achetez d'abord une pioche dans la boutique !"
             >
                 <span class="mine-btn-icon">⛏️</span>
-                <span class="mine-btn-label">Miner</span>
-                <span id="click-power">+1 par clic</span>
+                <!-- Texte modifié par UI.updateMineButtonState() -->
+                <span class="mine-btn-label" id="mine-btn-text">🔒 Achète une pioche !</span>
+                <!-- Puissance de clic actuelle -->
+                <span id="click-power">Achetez la Pioche de Base !</span>
             </button>
 
-            <!-- Info bâtiments actifs -->
-            <div style="
-                text-align: center;
-                color: var(--text-secondary);
-                font-size: 13px;
-                z-index: 5;
-            ">
-                <span id="total-buildings" style="
-                    font-family: var(--font-mono);
-                    font-size: 18px;
-                    color: var(--zone-accent);
-                ">0</span>
+            <!-- Compteur de bâtiments actifs -->
+            <div class="mine-info">
+                <span class="mine-info-count" id="total-buildings">0</span>
                 bâtiments actifs
             </div>
 
-        </div>
-    </main>
+        </div><!-- /#mine-area -->
 
-    <!-- ─── RIGHT PANEL (Boutique) ──────────────────────────── -->
+    </main><!-- /#center-panel -->
+
+
+    <!-- ────────────────────────────────────────────────────
+         D. PANNEAU DROIT — Boutique
+    ──────────────────────────────────────────────────────── -->
     <aside id="right-panel" role="complementary" aria-label="Boutique">
 
+        <!-- En-tête de la boutique -->
         <div class="shop-header">
             <span>🏪 Boutique</span>
-            <span id="shop-info">Améliore ton empire</span>
+            <span style="color:var(--zone-accent)">Améliore ton empire</span>
         </div>
 
-        <!-- Onglets Boutique -->
-        <div class="shop-tabs" role="tablist">
-            <button class="tab-btn active" data-tab="buildings" role="tab" aria-selected="true">⛏️ Bâtiments</button>
-            <button class="tab-btn" data-tab="upgrades" role="tab" aria-selected="false">🔧 Améliorations</button>
+        <!-- Sélecteur de quantité d'achat -->
+        <div class="buy-mode-bar" role="group" aria-label="Mode d'achat">
+            <button class="buy-mode-btn active" data-mode="1"   aria-label="Acheter 1">×1</button>
+            <button class="buy-mode-btn"        data-mode="10"  aria-label="Acheter 10">×10</button>
+            <button class="buy-mode-btn"        data-mode="100" aria-label="Acheter 100">×100</button>
+            <button class="buy-mode-btn"        data-mode="max" aria-label="Acheter le maximum">Max</button>
         </div>
 
-        <!-- Panel Bâtiments -->
+        <!-- Onglets Bâtiments / Améliorations -->
+        <div class="shop-tabs" role="tablist" aria-label="Boutique">
+            <button class="tab-btn active" data-tab="buildings"
+                    role="tab" aria-selected="true">⛏️ Bâtiments</button>
+            <button class="tab-btn"        data-tab="upgrades"
+                    role="tab" aria-selected="false">🔧 Améliorations</button>
+        </div>
+
+        <!-- Panneau Bâtiments (visible par défaut) -->
         <div id="tab-buildings" class="tab-panel active" role="tabpanel">
+            <!--
+                IMPORTANT : La "Pioche de Base" est dans l'onglet Améliorations.
+                Le joueur doit aller dans "Améliorations" pour l'acheter.
+                Après achat, le bouton Miner se débloque automatiquement.
+            -->
             <div id="shop-buildings" aria-label="Liste des bâtiments"></div>
         </div>
 
-        <!-- Panel Upgrades -->
+        <!-- Panneau Améliorations -->
         <div id="tab-upgrades" class="tab-panel" role="tabpanel">
+            <!--
+                La "Pioche de Base" apparaît ici dès le départ (isStarter = true).
+                Elle coûte exactement 15 pierres = le stock de départ.
+            -->
             <div id="shop-upgrades" aria-label="Liste des améliorations"></div>
         </div>
 
-    </aside>
+    </aside><!-- /#right-panel -->
 
-    <!-- ─── BOTTOM BAR ──────────────────────────────────────── -->
+
+    <!-- ────────────────────────────────────────────────────
+         E. BOTTOM BAR — Événements et log
+    ──────────────────────────────────────────────────────── -->
     <footer id="bottombar" role="contentinfo">
-        <div id="event-banner" role="alert" aria-live="assertive"></div>
 
-        <div style="
-            margin-left: auto;
-            font-size: 11px;
-            color: var(--text-dim);
-            font-family: var(--font-mono);
-            white-space: nowrap;
-        " id="bottom-info">
-            ⛏️ DeepMine v1.0
-        </div>
+        <!-- Bannière d'événement aléatoire (masquée quand inactif) -->
+        <div id="event-banner" role="alert" aria-live="polite"></div>
+
+        <!-- Log des dernières actions (texte défilant) -->
+        <div id="log-ticker" aria-live="off"></div>
+
+        <!-- Version -->
+        <span class="version-tag">Minéria v1.1</span>
+
     </footer>
 
 </div><!-- /#game-wrapper -->
 
-<!-- ─── Scripts (ordre important) ──────────────────────────── -->
+
+<!-- ════════════════════════════════════════════════════════════
+     CHARGEMENT DES SCRIPTS
+     ORDRE IMPORTANT — chaque fichier dépend du précédent :
+       1. upgrades.js  → BUILDINGS_DATA, UPGRADES_DATA, ZONES_DATA,
+                         ACHIEVEMENTS_DATA, fonctions de calcul
+       2. events.js    → EventSystem (utilise formatNumber de script.js
+                         mais n'est appelé qu'après init())
+       3. save.js      → SaveSystem (utilise UI de script.js)
+       4. script.js    → GameState, UI, init() — définit tout le reste
+═══════════════════════════════════════════════════════════════ -->
 <script src="upgrades.js"></script>
 <script src="events.js"></script>
 <script src="save.js"></script>
 <script src="script.js"></script>
 
-<!-- Script inline : mise à jour du modal prestige avec le bon nombre de fragments -->
-<script>
-    // Mise à jour dynamique du modal prestige
-    document.getElementById('prestige-btn')?.addEventListener('click', () => {
-        const frags = getPrestigeFragments();
-        const el = document.getElementById('modal-fragments-preview');
-        if (el) {
-            el.textContent = `+${frags} Fragment${frags > 1 ? 's' : ''} de Sagesse`;
-        }
-        // Met à jour les bonus affichés
-        const clickBonus = Math.min(500, (GameState.prestige.totalFragments + frags) * 5);
-        const autoBonus  = Math.min(500, (GameState.prestige.totalFragments + frags) * 5);
-        const luckBonus  = Math.min(200, (GameState.prestige.totalFragments + frags) * 2);
-        document.getElementById('pb-click').textContent = `+${clickBonus}%`;
-        document.getElementById('pb-auto').textContent  = `+${autoBonus}%`;
-        document.getElementById('pb-luck').textContent  = `+${luckBonus}%`;
-        document.getElementById('pb-count').textContent = GameState.prestige.count + 1;
-    });
+<!--
+    NOTE : Le jeu démarre automatiquement via l'écouteur
+    document.addEventListener('DOMContentLoaded', init)
+    défini à la fin de script.js.
 
-    // Mise à jour des bonus affichés dans le panel prestige
-    setInterval(() => {
-        const p = typeof GameState !== 'undefined' ? GameState.prestige : null;
-        if (!p) return;
-        const pbClick = document.getElementById('pb-click');
-        const pbAuto  = document.getElementById('pb-auto');
-        const pbLuck  = document.getElementById('pb-luck');
-        const pbCount = document.getElementById('pb-count');
-        if (pbClick) pbClick.textContent = `+${p.clickBonus}%`;
-        if (pbAuto)  pbAuto.textContent  = `+${p.autoBonus}%`;
-        if (pbLuck)  pbLuck.textContent  = `+${p.luckBonus}%`;
-        if (pbCount) pbCount.textContent = p.count;
-
-        // Compteur d'achievements
-        const achCount = document.getElementById('ach-count');
-        if (achCount && typeof GameState !== 'undefined') {
-            achCount.textContent = `${GameState.achievements.length}/${ACHIEVEMENTS_DATA.length}`;
-        }
-
-        // Nom de la zone dans le centre
-        const mineZoneName = document.getElementById('mine-zone-name');
-        if (mineZoneName && typeof GameState !== 'undefined' && GameState.currentZone) {
-            mineZoneName.textContent = GameState.currentZone.name;
-        }
-    }, 500);
-</script>
+    POUR DÉBOGUER DANS LA CONSOLE :
+      GameState        → état complet du jeu
+      formatNumber(n)  → formater un nombre
+      EventSystem.triggerEvent(GameState)  → déclencher un événement
+      SaveSystem.deleteSave()              → effacer la sauvegarde
+-->
 
 </body>
 </html>
